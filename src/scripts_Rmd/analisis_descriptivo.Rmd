@@ -1,0 +1,38 @@
+---
+title: "Muestreo nacional"
+output: html_document
+---
+
+
+Base de datos de entrada INFyS\_2009\_2013, tablas Arbolado\_2009\_2013 y 
+_Conglomerados_.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+options(digits = 2)
+source("src/tema_ggplot.R")
+library(ggplot2)
+library(plyr)
+library(tidyr)
+library(dplyr)
+
+library(rgdal)
+library(maptools)
+
+library(gridExtra)
+
+library(Hmisc)
+library(data.table)
+
+load(file = "../../datos/bases_procesadas_R/arbolado.Rdata")
+```
+
+Veamos cómo se distribuyen los conglomerados de acuerdo al tipo de vegetación 
+primaria levantada
+
+```{r, echo=FALSE, echo=FALSE, message=FALSE, warnings=FALSE}
+edo_shp <- readOGR("../../datos/estados", layer = "Mex_Edos")
+edo_shp@data$id <- rownames(edo_shp@data)
+edo_df <- edo_shp %>%
+  fortify(region = "id") %>%
+  mutate(id = as.numeric(id)) # hacemos el id numérica
+```
