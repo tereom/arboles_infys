@@ -11,6 +11,8 @@ _Conglomerados_.
 options(digits = 2)
 source("src/tema_ggplot.R")
 library(ggplot2)
+library(scales)
+library(ggmap)
 library(plyr)
 library(tidyr)
 library(dplyr)
@@ -23,6 +25,7 @@ library(gridExtra)
 library(Hmisc)
 library(data.table)
 
+library(raster)
 load(file = "../../datos/bases_procesadas_R/arbolado.Rdata")
 ```
 
@@ -31,8 +34,116 @@ primaria levantada
 
 ```{r, echo=FALSE, echo=FALSE, message=FALSE, warnings=FALSE}
 edo_shp <- readOGR("../../datos/estados", layer = "Mex_Edos")
-edo_shp@data$id <- rownames(edo_shp@data)
 edo_df <- edo_shp %>%
-  fortify(region = "id") %>%
-  mutate(id = as.numeric(id)) # hacemos el id numérica
+  fortify(region = "NOM_ENT")
+
+ggplot(data = filter(cgls, !(formacion %in% c("areas no forestales", 
+         "otras areas forestales", "otras asociaciones")))) + 
+  geom_polygon(data = edo_df, colour='darkgray', fill = "darkgray", alpha = 0.4,
+               aes(x = long, y = lat, group = group)) + 
+  geom_point(aes(x = X, y = Y, color = formacion, 
+                 size = Arboles_x_cgl), alpha = 0.7) +
+  labs(title = "Vegetación primaria levantada", color = "Tipo", 
+       size = "# árboles") +
+  coord_map(projection="lambert", lat0=12, lat1=17.5) +
+  theme_nothing(legend = TRUE)
+
+
+ggplot() + 
+  geom_polygon(data = edo_df, colour='darkgray', fill = "darkgray", alpha = 0.4,
+               aes(x = long, y = lat, group = group)) + 
+  geom_point(data = cgls, aes(x = X, y = Y, color = Altitud), alpha = 0.7) +
+  coord_map(projection="lambert", lat0=12, lat1=17.5) +
+  scale_color_distiller(palette = "Blues",
+        breaks = pretty_breaks(n = 10)) +
+  theme_nothing(legend = TRUE) +
+  labs(title = "Altitud", color = "(m)")
 ```
+
+### Altura Total y Diámetro Normal
+Las principales variables de interés son _Altura Total_ y _Diámetro Normal_. A
+continuación mostramos los histogramas correspondientes.
+
+```{r, fig.height=4, fig.width = 8}
+hist_altura <- ggplot(arbolado, aes(x = AlturaTotal)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 2) +
+  labs(y = "", title = "Altura Total")
+
+hist_diametro <- ggplot(arbolado, aes(x = DiametroNormal)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 3) +
+  labs(y = "", title = "Diámetro Normal")
+
+hist_diametroC <- ggplot(arbolado, aes(x = DiametroCopa)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 2) +
+  labs(y = "", title = "Diámetro Copa")
+
+hist_altura_log <- ggplot(arbolado, aes(x = log(AlturaTotal))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.2) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-3:6, function(i) 2 ^ i)), limits = c(-3, 6)) +
+  labs(y = "", title = "Altura Total (log)")
+
+hist_diametro_log <- ggplot(arbolado, aes(x = log(DiametroNormal))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.09) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-1:8, function(i) 2 ^ i)), limits = c(2, 8)) +
+  labs(y = "", title = "Diámetro Normal (log)")
+
+hist_diametroC_log <- ggplot(arbolado, aes(x = log(DiametroCopa))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.3) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-3:5, function(i) 2 ^ i)), limits = c(-3, 4)) +
+  labs(y = "", title = "Diámetro Copa (log)")
+
+grid.arrange(hist_altura, hist_diametro, hist_diametroC, hist_altura_log, 
+             hist_diametro_log, hist_diametroC_log, nrow = 2)
+```
+
+En los histogramas notamos que hace falta eliminar datos aberrantes. Hay que
+revisar la metodología para tener un criterio adicional.
+
+```{r}
+quantile(arbolado$AlturaTotal, seq(0, 1, 0.05), na.rm = T)
+quantile(arbolado$DiametroNormal, seq(0, 1, 0.05), na.rm = T)
+quantile(arbolado$DiametroCopa, seq(0, 1, 0.05), na.rm = T)
+
+# arbolado_2 <- arbolado %>%
+#   mutate(
+#     AlturaTotal = ifelse(AlturaTotal > 50 | AlturaTotal <= 0, NA, AlturaTotal),
+#     DiametroNormal = ifelse(DiametroNormal > 34 | DiametroNormal <= 0, 
+#       NA, DiametroNormal),
+#     DiametroCopa = ifelse(DiametroCopa > 10 | DiametroCopa <= 0, NA, 
+#       DiametroCopa)
+#     )
+
+```
+
+Veamos como varían las variables por formación.
+
+```{r}
+
+# Resúmenes a nivel formación
+cgls %>%
+  group_by(formacion) %>%
+  summarise(
+    num_cgls = n(),
+    num_media = mean(num_arboles),
+    num_min = min(num_arboles),
+    num_max = max(num_arboles),
+    altura_med = mean(alturaT_media),
+    altura_sd = sd(alturaT_media),
+    diametro_med = mean(diametroN_media),
+    diametro_sd = sd(diametroN_media)
+    ) %>%
+  arrange(altura_med)
+```
+
+
+Ahora graficamos las medias de la variable _Altura Total_ por 
+conglomerado, y los intervalos correspondientes a los cuantiles 5% a 95%. 
+Vale la pena notar que la longitud de los intervalos no se debe únicamente a 
+tamaño de muestra sino también nos habla de _variabilidad_ en las alturas dentro
+de un conglomerado. Más aún, los lugares con mayor variabilidad corresponden a 
+los lugares donde la media es mayor, esto es natural pues no hay lugares que 
+tengan únicamente árboles muy altos pero si hay lugares con pocos árboles
+altos.
