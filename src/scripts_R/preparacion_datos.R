@@ -15,7 +15,6 @@ library(maptools)
 library(gridExtra)
 
 library(Hmisc)
-library(data.table)
 
 
 arbolado <- read.csv("../../datos/bases_infys_2009_2013/Arbolado_2009_2013_mac.txt", 
@@ -44,6 +43,7 @@ arbolado_2 <- arbolado %>%
   )
 
 save(arbolado_2, file = "../../datos/bases_procesadas_R/arbolado_2.Rdata")
+
 conglomerados <- read.csv("../../datos/bases_infys_2009_2013/Conglomerados_mac.txt", 
   stringsAsFactors=FALSE, na.strings = c("-9999", "n/a", "NULL", "NA", "N/A"))
 conglomerados$Cgl <- as.character(conglomerados$Conglomerado)
@@ -88,3 +88,76 @@ cgls <- filter(arbolado_cgl, complete.cases(arbolado_cgl)) %>%
   inner_join(conglomerados, by = c("Cgl" = "Cgl"))
 
 save(cgls, file = "../../datos/bases_procesadas_R/cgls.Rdata")
+
+######### Bases 2013
+arbolado_bqs <- read.delim("../../datos/bases_infys_2009_2013/Arbolado_2013_bqs_db.csv", 
+  stringsAsFactors = FALSE, 
+  na.strings = c("-9999", "n/a", "NULL", "NA", "N/A", "(null)"))
+
+arbolado_oc <- read.csv("../../datos/bases_infys_2009_2013/Arbolado_2013_oc_db.csv", 
+  stringsAsFactors = FALSE, 
+  na.strings = c("-9999", "n/a", "NULL", "NA", "N/A", "(null)"))
+
+cbind(names(arbolado_bqs), names(arbolado_oc))
+
+# por ahora eliminamos AlturaFusteLimpio (no está en otras comunidades)
+vars_conj <- names(arbolado_bqs)[names(arbolado_bqs) %in% names(arbolado_oc)]
+
+arbolado_bqs <- arbolado_bqs[, vars_conj][, 1:16]
+arbolado_bqs$comunidad <- "bosque selva"
+arbolado_oc <- arbolado_oc[, vars_conj][, 1:16]
+arbolado_oc$comunidad <- "otras comunidades"
+
+str(arbolado_bqs)
+str(arbolado_oc)
+
+arbolado_13 <- rbind(arbolado_bqs, arbolado_oc)
+
+hist_altura <- ggplot(arbolado_13, aes(x = AlturaTotal)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 2) +
+  labs(y = "", title = "Altura Total")
+
+hist_diametro <- ggplot(arbolado_13, aes(x = DiametroNormal)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 3) +
+  labs(y = "", title = "Diámetro Normal")
+
+hist_diametroC <- ggplot(arbolado_13, aes(x = DiametroCopa)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 2) +
+  labs(y = "", title = "Diámetro Copa")
+
+hist_altura_log <- ggplot(arbolado_13, aes(x = log(AlturaTotal))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.2) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-3:6, function(i) 2 ^ i)), limits = c(-3, 6)) +
+  labs(y = "", title = "Altura Total (log)")
+
+hist_diametro_log <- ggplot(arbolado_13, aes(x = log(DiametroNormal))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.09) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-1:8, function(i) 2 ^ i)), limits = c(2, 8)) +
+  labs(y = "", title = "Diámetro Normal (log)")
+
+hist_diametroC_log <- ggplot(arbolado_13, aes(x = log(DiametroCopa))) + 
+  geom_histogram(aes(y = ..density..), binwidth = 0.3) +
+  scale_x_continuous("m", labels = exp, 
+    breaks = log(sapply(-3:5, function(i) 2 ^ i)), limits = c(-3, 4)) +
+  labs(y = "", title = "Diámetro Copa (log)")
+
+grid.arrange(hist_altura, hist_diametro, hist_diametroC, hist_altura_log, 
+             hist_diametro_log, hist_diametroC_log, nrow = 2)
+
+quantile(arbolado_13$AlturaTotal, seq(0, 1, 0.05), na.rm = T)
+quantile(arbolado_13$DiametroNormal, seq(0, 1, 0.05), na.rm = T)
+quantile(arbolado_13$DiametroCopa, seq(0, 1, 0.05), na.rm = T)
+
+##### Quitar outliers
+arbolado_13_2 <- arbolado_13 %>%
+  mutate(
+    AlturaTotal = ifelse(AlturaTotal > 50 | AlturaTotal <= 0, NA, AlturaTotal),
+    DiametroNormal = ifelse(DiametroNormal > 34 | DiametroNormal <= 0, 
+                            NA, DiametroNormal),
+    DiametroCopa = ifelse(DiametroCopa > 10 | DiametroCopa <= 0, NA, 
+                          DiametroCopa)
+  )
+
+save(arbolado_13_2, file = "../../datos/bases_procesadas_R/arbolado_13.Rdata")
