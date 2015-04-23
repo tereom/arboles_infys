@@ -121,6 +121,7 @@ quantile(arbolado$DiametroCopa, seq(0, 1, 0.05), na.rm = T)
 Veamos como varían las variables por formación.
 
 ```{r}
+load(file = "../../datos/bases_procesadas_R/cgls.Rdata")
 
 # Resúmenes a nivel formación
 cgls %>%
@@ -147,3 +148,17 @@ de un conglomerado. Más aún, los lugares con mayor variabilidad corresponden a
 los lugares donde la media es mayor, esto es natural pues no hay lugares que 
 tengan únicamente árboles muy altos pero si hay lugares con pocos árboles
 altos.
+
+```{r, fig.width=9, fig.height=6}
+# Resumenes a nivel conglomerado
+ggplot(cgls, aes(x = reorder(1:nrow(cgls), alturaT_media), 
+                 y = alturaT_media, ymin = alturaT_05, ymax = alturaT_95, 
+                 color = num_cat)) + 
+  geom_pointrange() +
+  scale_color_brewer(palette = "Reds") +
+  scale_x_discrete("Conglomerados", labels = "") +
+  facet_wrap(~ formacion) +
+  labs(title = "Altura Total (intervalos 90%)", color = "# árboles", 
+       y = "Media")
+```
+
