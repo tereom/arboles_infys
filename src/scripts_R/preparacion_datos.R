@@ -89,7 +89,10 @@ cgls <- filter(arbolado_cgl, complete.cases(arbolado_cgl)) %>%
 
 save(cgls, file = "../../datos/bases_procesadas_R/cgls.Rdata")
 
-######### Bases 2013
+#######################################################################
+############################# Bases 2013 ##############################
+#######################################################################
+
 arbolado_bqs <- read.delim("../../datos/bases_infys_2009_2013/Arbolado_2013_bqs_db.csv", 
   stringsAsFactors = FALSE, 
   na.strings = c("-9999", "n/a", "NULL", "NA", "N/A", "(null)"))
@@ -160,4 +163,33 @@ arbolado_13_2 <- arbolado_13 %>%
                           DiametroCopa)
   )
 
+# unir con número de conglomerado
+# para esto hace falta unir primero con TblSitio
+sitio_13 <- read.csv("../../datos/bases_infys_2009_2013/Sitio_2013_db.csv", 
+  stringsAsFactors = FALSE, 
+  na.strings = c("-9999", "n/a", "NULL", "NA", "N/A", "(null)"))
+
+conglomerados_db_13 <- read.csv("../../datos/bases_infys_2009_2013/Conglomerado_2013_db.csv",
+  stringsAsFactors=FALSE)
+
+conglomerado_13 <- select(conglomerados_db_13, IdConglomerado, 
+       TipoFormato, Fecha, TipoConglomerado, Municipio)
+
+sitio_cgl <- left_join(sitio_13, conglomerado_13)
+arbolado_13_3 <- left_join(arbolado_13_2, sitio_cgl)
+
+arbolado_13_3 %>%
+  arrange(arbolado_13_3, IdConglomerado)[1:100, c(1, 18)]
+
+head(arbolado_13_3)
 save(arbolado_13_2, file = "../../datos/bases_procesadas_R/arbolado_13.Rdata")
+
+### Chequeos
+
+chequeo <- arbolado_13_3 %>%
+  group_by(IdConglomerado) %>%
+  mutate(
+    n_sitios = length(unique(IdSitio))
+  )
+
+table(chequeo$n_sitios)
